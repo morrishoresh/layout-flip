@@ -8,6 +8,9 @@ swift build -c release
 APP=build/LayoutFlip.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+swiftc -O Tools/IconRenderer/main.swift -o build/icon-renderer
+build/icon-renderer appicon build/AppIcon.iconset
+iconutil -c icns build/AppIcon.iconset -o "$APP/Contents/Resources/AppIcon.icns"
 cp .build/release/LayoutFlip "$APP/Contents/MacOS/"
 cp Info.plist "$APP/Contents/"
 cp shell/layout-flip.zsh "$APP/Contents/Resources/"
