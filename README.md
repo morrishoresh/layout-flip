@@ -1,0 +1,35 @@
+# LayoutFlip
+
+Menu-bar app that fixes text typed with the wrong keyboard layout (e.g. `akuo` -> `שלום`, `ןצפ` -> `jxp`) by re-typing the same physical keys on another layout.
+
+- Works with whatever keyboard layouts are enabled in System Settings › Keyboard › Input Sources; nothing is hard-coded to Hebrew/English.
+- The source layout is detected from the characters in the text. With two layouts the text is converted to the other one; with more, a menu at the mouse pointer shows the result for each layout.
+- After converting, the active input source switches to the target layout.
+
+## Build / install
+
+```sh
+./build.sh            # builds build/LayoutFlip.app
+./build.sh --install  # also copies it to /Applications and registers the Services entry
+```
+
+## Use
+
+1. Open `/Applications/LayoutFlip.app` (keyboard icon in the menu bar) and grant Accessibility access when asked.
+2. Select text and either:
+   - press the shortcut (default ⌃⌥⌘L), or
+   - right-click -> Services -> Convert Keyboard Layout (shown only when text is selected).
+3. Settings… -> click the shortcut field and press a new combination. If it is already used by a macOS shortcut or by a menu item of a running app, a warning lists where; you can cancel or use it anyway.
+
+The shortcut copies the selection, pastes the converted text and restores the clipboard. The Services entry replaces the selection directly without touching the clipboard. If the Services entry is missing, enable it in System Settings › Keyboard › Keyboard Shortcuts › Services › Text.
+
+Accessibility access is needed for sending ⌘C/⌘V and for checking app menus for shortcut conflicts. The app is ad-hoc signed, so after each rebuild remove and re-add it under System Settings › Privacy & Security › Accessibility.
+
+Command-line check of the layout maps:
+
+```sh
+build/LayoutFlip.app/Contents/MacOS/LayoutFlip --list
+build/LayoutFlip.app/Contents/MacOS/LayoutFlip --convert "akuo"
+```
+
+Logs: `log stream --predicate 'subsystem == "com.morrish.LayoutFlip"'`
