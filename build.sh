@@ -13,7 +13,7 @@ cp Info.plist "$APP/Contents/"
 cp shell/layout-flip.zsh "$APP/Contents/Resources/"
 # Ad-hoc signatures are identified by their hash, so macOS would drop the Accessibility grant on every rebuild.
 # Requiring only the bundle identifier keeps the grant across rebuilds.
-codesign --force --sign - --requirements '=designated => identifier "com.morrish.LayoutFlip"' "$APP"
+codesign --force --sign - --requirements '=designated => identifier "com.morrishoresh.LayoutFlip"' "$APP"
 echo "Built $APP"
 
 if [[ "${1:-}" == "--install" ]]; then

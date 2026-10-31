@@ -2,7 +2,7 @@
 
 Menu-bar app that fixes text typed with the wrong keyboard layout (e.g. `akuo` -> `שלום`, `ןצפ` -> `jxp`) by re-typing the same physical keys on another layout.
 
-- Works with whatever keyboard layouts are enabled in System Settings › Keyboard › Input Sources; nothing is hard-coded to Hebrew/English.
+- Works with whatever keyboard layouts are enabled in System Settings › Keyboard › Input Sources; no layouts are hard-coded.
 - The source layout is detected from the characters in the text. With two layouts the text is converted to the other one; with more, a menu at the mouse pointer shows the result for each layout.
 - After converting, the active input source switches to the target layout.
 
@@ -32,4 +32,4 @@ build/LayoutFlip.app/Contents/MacOS/LayoutFlip --list
 build/LayoutFlip.app/Contents/MacOS/LayoutFlip --convert "akuo"
 ```
 
-Logs: `log stream --predicate 'subsystem == "com.morrish.LayoutFlip"'`
+Logs: `log stream --predicate 'subsystem == "com.morrishoresh.LayoutFlip"'`

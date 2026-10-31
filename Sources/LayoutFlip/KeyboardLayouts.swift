@@ -73,7 +73,7 @@ final class KeyboardLayout {
         return sources.compactMap(KeyboardLayout.init)
     }
 
-    /// The layout used for keyboard shortcuts (e.g. ABC while Hebrew is active).
+    /// The layout used for keyboard shortcuts (e.g. ABC while a non-Latin layout is active).
     static func asciiCapable() -> KeyboardLayout? {
         guard let source = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue() else { return nil }
         return KeyboardLayout(source: source)

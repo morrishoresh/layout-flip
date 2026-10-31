@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.morrish.LayoutFlip</string>
+    <string>com.morrishoresh.LayoutFlip</string>
     <key>CFBundleName</key>
     <string>LayoutFlip</string>
     <key>CFBundleExecutable</key>

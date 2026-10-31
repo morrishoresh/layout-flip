@@ -5,7 +5,7 @@ import os
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    private let log = Logger(subsystem: "com.morrish.LayoutFlip", category: "convert")
+    private let log = Logger(subsystem: "com.morrishoresh.LayoutFlip", category: "convert")
     private var statusItem: NSStatusItem!
     private var hotKey: HotKey!
     private var settings: SettingsWindowController?
