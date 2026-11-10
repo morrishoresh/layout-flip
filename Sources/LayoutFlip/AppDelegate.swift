@@ -129,12 +129,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             text = await copySelection()
         }
         var linePrefix: String?
+        var collapseKey: Int?
         if text?.isEmpty ?? true {
-            // Nothing selected and Accessibility can't select (e.g. Firefox): select to the line start with ⇧⌘←
-            // and convert the trailing run of the copied text, keeping the rest of it as is.
-            Keyboard.press(keyCode: kVK_LeftArrow, flags: [.maskCommand, .maskShift, .maskSecondaryFn, .maskNumericPad])
+            // Nothing selected and Accessibility can't select (e.g. Firefox): select to the line start with the
+            // arrow keys and convert the trailing run of the copied text, keeping the rest of it as is.
             text = nil
-            if let line = await copySelection(), !line.isEmpty {
+            let selection = await selectToLineStartWithKeys()
+            collapseKey = selection.collapseKey
+            if let line = selection.text {
                 linePrefix = ""
                 if let runStart = LayoutConverter.trailingRunUTF16Start(of: line, among: KeyboardLayout.enabled()) {
                     linePrefix = (line as NSString).substring(to: runStart)
@@ -147,9 +149,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let text, !text.isEmpty, let conversion = pickConversion(for: text) else {
             log.info("Nothing to convert")
             pasteboard.restore(saved)
-            if linePrefix != nil {
-                // Drop the ⇧⌘← selection, leaving the caret where it was.
-                Keyboard.press(keyCode: kVK_RightArrow, flags: [.maskSecondaryFn, .maskNumericPad])
+            if let collapseKey {
+                // Drop the arrow-key selection, leaving the caret where it was.
+                Keyboard.press(keyCode: collapseKey, flags: [.maskSecondaryFn, .maskNumericPad])
             }
             NSSound.beep()
             return
@@ -184,6 +186,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return nil
         }
         return pasteboard.string(forType: .string)
+    }
+
+    /// Selects from the caret to the start of its line and returns the copied text (nil when empty), plus the arrow
+    /// key that drops the selection again (nil when nothing is selected). ⇧⌘← selects to the visual left end of the
+    /// line, which in a right-to-left paragraph is its end. So when it copies nothing or right-to-left text, ⇧⌘→
+    /// extends from the caret to the visual right end instead, which is the start of a right-to-left paragraph.
+    private func selectToLineStartWithKeys() async -> (text: String?, collapseKey: Int?) {
+        let flags: CGEventFlags = [.maskCommand, .maskShift, .maskSecondaryFn, .maskNumericPad]
+        Keyboard.press(keyCode: kVK_LeftArrow, flags: flags)
+        let left = await copySelection() ?? ""
+        if !left.isEmpty, Self.startsRightToLeft(left) != true { return (left, kVK_RightArrow) }
+
+        Keyboard.press(keyCode: kVK_RightArrow, flags: flags)
+        let right = await copySelection() ?? ""
+        if Self.startsRightToLeft(right) == true { return (right, kVK_LeftArrow) }
+        if !left.isEmpty {
+            // Right-to-left text in a left-to-right paragraph (e.g. a web input without dir="auto"): back to ⇧⌘←.
+            Keyboard.press(keyCode: kVK_LeftArrow, flags: flags)
+            return (left, kVK_RightArrow)
+        }
+        return (nil, right.isEmpty ? nil : kVK_LeftArrow)
+    }
+
+    /// Whether the first strongly directional character is right-to-left (Hebrew, Arabic, ...); nil without one.
+    private static func startsRightToLeft(_ text: String) -> Bool? {
+        for scalar in text.unicodeScalars {
+            switch scalar.value {
+            case 0x0590...0x08FF, 0xFB1D...0xFDFF, 0xFE70...0xFEFF, 0x10800...0x10FFF, 0x1E800...0x1EFFF:
+                return true
+            default:
+                if scalar.properties.isAlphabetic { return false }
+            }
+        }
+        return nil
     }
 
     /// The shortcut fires while its modifiers are still down; wait so they don't mix into the synthetic ⌘C/⌘V.

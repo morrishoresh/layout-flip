@@ -21,7 +21,7 @@ Menu-bar app that fixes text typed with the wrong keyboard layout (e.g. `akuo` -
    - select text and right-click -> Services -> Convert Keyboard Layout (shown only when text is selected).
 3. Settings… -> click the shortcut field and press a new combination. If it is already used by a macOS shortcut or by a menu item of a running app, a warning lists where; you can cancel or use it anyway.
 
-The shortcut copies the selection, pastes the converted text and restores the clipboard. With nothing selected, it selects the text via Accessibility, or in apps that don't expose it (e.g. Firefox) with ⇧⌘←, then pastes the line with only its trailing run converted. The Services entry replaces the selection directly without touching the clipboard. If the Services entry is missing, enable it in System Settings › Keyboard › Keyboard Shortcuts › Services › Text.
+The shortcut copies the selection, pastes the converted text and restores the clipboard. With nothing selected, it selects the text via Accessibility, or in apps that don't expose it (e.g. Firefox) with ⇧⌘← (⇧⌘→ in a right-to-left paragraph), then pastes the line with only its trailing run converted. The Services entry replaces the selection directly without touching the clipboard. If the Services entry is missing, enable it in System Settings › Keyboard › Keyboard Shortcuts › Services › Text.
 
 In a terminal the shortcut types U+E000, which converts the text before the cursor in:
 
