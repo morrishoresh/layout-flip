@@ -1,6 +1,6 @@
 # LayoutFlip
 
-Menu-bar app that fixes text typed with the wrong keyboard layout (e.g. `akuo` -> `שלום`, `ןצפ` -> `jxp`) by re-typing the same physical keys on another layout.
+Menu-bar app that fixes text typed with the wrong keyboard layout (e.g. `akuo` -> `שלום`) by re-typing the same physical keys on another layout.
 
 - Works with whatever keyboard layouts are enabled in System Settings › Keyboard › Input Sources; no layouts are hard-coded.
 - The source layout is detected from the characters in the text. With two layouts the text is converted to the other one; with more, a menu at the mouse pointer shows the result for each layout.
