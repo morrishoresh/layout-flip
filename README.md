@@ -10,7 +10,7 @@ Menu-bar app that fixes text typed with the wrong keyboard layout (e.g. `akuo` -
 
 ```sh
 ./build.sh            # builds build/LayoutFlip.app
-./build.sh --install  # also copies it to /Applications and registers the Services entry
+./build.sh --install  # also copies it to /Applications, registers the Services entry and installs the Claude Code mod
 ```
 
 ## Use
@@ -26,7 +26,7 @@ The shortcut copies the selection, pastes the converted text and restores the cl
 In a terminal the shortcut types U+E000, which converts the text before the cursor in:
 
 - zsh: source `layout-flip.zsh` from `~/.zshrc` (see the header of `shell/layout-flip.zsh`).
-- Claude Code: load the mod in `claude-code/`, e.g. by adding its absolute path to `CLAUDE_CODE_PLUGIN_DIRS` in the `env` block of `~/.claude/settings.json`.
+- Claude Code: the mod in `claude-code/`. When `claude` is on the `PATH`, `./build.sh --install` copies it to `~/Library/Application Support/LayoutFlip/claude-code` and adds that folder to `CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json`. It runs from outside the app because Claude Code writes into the plugin folders it loads, which would break the app's signature.
 
 Accessibility access is needed for sending ⌘C/⌘V and for checking app menus for shortcut conflicts. The app is ad-hoc signed, so after each rebuild remove and re-add it under System Settings › Privacy & Security › Accessibility.
 
