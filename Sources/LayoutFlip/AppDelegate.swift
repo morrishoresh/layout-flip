@@ -103,42 +103,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// Terminals can't replace a selection, so there the shortcut sends ⌃X⌃L, which the zsh widget
-    /// (layout-flip.zsh) binds to converting the command line.
+    /// Terminals can't replace a selection, so there the shortcut types `terminalMarker`, which the zsh widget
+    /// (layout-flip.zsh) and the Claude Code mod (claude-code/) take as a request to convert the text before the caret.
     private static let terminalBundleIDs: Set<String> = [
         "com.apple.Terminal", "com.googlecode.iterm2", "com.mitchellh.ghostty", "dev.warp.Warp-Stable",
         "net.kovidgoyal.kitty", "org.alacritty", "com.github.wez.wezterm",
     ]
 
+    /// A private-use character, so it is never typed otherwise.
+    private static let terminalMarker = "\u{E000}"
+
     private func replaceSelection() async {
         await waitForModifierRelease()
         if let bundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier, Self.terminalBundleIDs.contains(bundleID) {
-            Keyboard.press("x", flags: .maskControl, fallback: kVK_ANSI_X)
-            Keyboard.press("l", flags: .maskControl, fallback: kVK_ANSI_L)
-            log.info("Sent ⌃X⌃L to \(bundleID)")
-            return
-        }
-        if Self.selectedTextViaAccessibility() == "" {
-            // Nothing selected. Copying anyway would make some editors copy the whole line.
-            NSSound.beep()
+            Keyboard.type(Self.terminalMarker)
+            log.info("Sent marker to \(bundleID)")
             return
         }
         let pasteboard = NSPasteboard.general
         let saved = pasteboard.snapshot()
-        let changeCount = pasteboard.changeCount
-        Keyboard.press("c", flags: .maskCommand, fallback: kVK_ANSI_C)
-        for _ in 0..<25 where pasteboard.changeCount == changeCount {
-            try? await Task.sleep(for: .milliseconds(20))
+        // Nil selected text means the app doesn't expose it; then ⌘C tells whether anything is selected.
+        // With "" (nothing selected) ⌘C is skipped, since some editors would copy the whole line.
+        var text: String?
+        if Self.selectedTextViaAccessibility() != "" || Self.selectTextBeforeCaret() {
+            text = await copySelection()
         }
-        guard pasteboard.changeCount != changeCount, let text = pasteboard.string(forType: .string) else {
-            log.info("Nothing copied")
-            NSSound.beep()
-            return
+        var linePrefix: String?
+        if text?.isEmpty ?? true {
+            // Nothing selected and Accessibility can't select (e.g. Firefox): select to the line start with ⇧⌘←
+            // and convert the trailing run of the copied text, keeping the rest of it as is.
+            Keyboard.press(keyCode: kVK_LeftArrow, flags: [.maskCommand, .maskShift, .maskSecondaryFn, .maskNumericPad])
+            text = nil
+            if let line = await copySelection(), !line.isEmpty {
+                linePrefix = ""
+                if let runStart = LayoutConverter.trailingRunUTF16Start(of: line, among: KeyboardLayout.enabled()) {
+                    linePrefix = (line as NSString).substring(to: runStart)
+                    text = (line as NSString).substring(from: runStart)
+                }
+            }
         }
 
         let frontmost = NSWorkspace.shared.frontmostApplication
-        guard let conversion = pickConversion(for: text) else {
+        guard let text, !text.isEmpty, let conversion = pickConversion(for: text) else {
+            log.info("Nothing to convert")
             pasteboard.restore(saved)
+            if linePrefix != nil {
+                // Drop the ⇧⌘← selection, leaving the caret where it was.
+                Keyboard.press(keyCode: kVK_RightArrow, flags: [.maskSecondaryFn, .maskNumericPad])
+            }
             NSSound.beep()
             return
         }
@@ -149,7 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         pasteboard.clearContents()
-        pasteboard.setString(conversion.text, forType: .string)
+        pasteboard.setString((linePrefix ?? "") + conversion.text, forType: .string)
         // Tells clipboard managers not to record this entry.
         pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
         Keyboard.press("v", flags: .maskCommand, fallback: kVK_ANSI_V)
@@ -157,6 +169,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         pasteboard.restore(saved)
         conversion.target.select()
         log.info("Converted \(conversion.source.name) -> \(conversion.target.name)")
+    }
+
+    /// Sends ⌘C and returns the copied text; nil when nothing was copied.
+    private func copySelection() async -> String? {
+        let pasteboard = NSPasteboard.general
+        let changeCount = pasteboard.changeCount
+        Keyboard.press("c", flags: .maskCommand, fallback: kVK_ANSI_C)
+        for _ in 0..<25 where pasteboard.changeCount == changeCount {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        guard pasteboard.changeCount != changeCount else {
+            log.info("Nothing copied")
+            return nil
+        }
+        return pasteboard.string(forType: .string)
     }
 
     /// The shortcut fires while its modifiers are still down; wait so they don't mix into the synthetic ⌘C/⌘V.
@@ -172,6 +199,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static func selectedTextViaAccessibility() -> String? {
         let focused: AXUIElement? = AXUIElementCreateSystemWide().attribute(kAXFocusedUIElementAttribute)
         return focused?.attribute(kAXSelectedTextAttribute)
+    }
+
+    /// With nothing selected, selects what the zsh widget converts on a command line: the text from the start of the
+    /// caret's line to the caret if it was all typed in one layout, otherwise its trailing run typed in one layout.
+    /// False when the focused element doesn't expose or accept its text and selection via Accessibility.
+    private static func selectTextBeforeCaret() -> Bool {
+        guard let focused: AXUIElement = AXUIElementCreateSystemWide().attribute(kAXFocusedUIElementAttribute),
+              let value: String = focused.attribute(kAXValueAttribute),
+              let selection: AXValue = focused.attribute(kAXSelectedTextRangeAttribute) else { return false }
+        var caret = CFRange()
+        let text = value as NSString
+        guard AXValueGetValue(selection, .cfRange, &caret), caret.length == 0, caret.location <= text.length else {
+            return false
+        }
+        let lineStart = text.lineRange(for: NSRange(location: caret.location, length: 0)).location
+        let line = text.substring(with: NSRange(location: lineStart, length: caret.location - lineStart))
+        guard let runStart = LayoutConverter.trailingRunUTF16Start(of: line, among: KeyboardLayout.enabled()) else {
+            return false
+        }
+        var run = CFRange(location: lineStart + runStart, length: caret.location - lineStart - runStart)
+        guard run.length > 0, let runValue = AXValueCreate(.cfRange, &run),
+              AXUIElementSetAttributeValue(focused, kAXSelectedTextRangeAttribute as CFString, runValue) == .success
+        else { return false }
+        // Some elements report success without changing the selection.
+        return selectedTextViaAccessibility()?.isEmpty == false
     }
 
     // MARK: Conversion via Services (right-click menu)
@@ -227,7 +279,23 @@ private final class ConversionPicker: NSObject {
 enum Keyboard {
     /// Presses the key that types `character` on the ASCII-capable layout (so ⌘C stays ⌘C on Dvorak).
     static func press(_ character: String, flags: CGEventFlags, fallback: Int) {
-        let keyCode = KeyboardLayout.asciiCapable()?.strokes[character]?.keyCode ?? UInt16(fallback)
+        press(keyCode: Int(KeyboardLayout.asciiCapable()?.strokes[character]?.keyCode ?? UInt16(fallback)), flags: flags)
+    }
+
+    /// Types `text` regardless of the active layout.
+    static func type(_ text: String) {
+        let source = CGEventSource(stateID: .hidSystemState)
+        let utf16 = Array(text.utf16)
+        for keyDown in [true, false] {
+            let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: keyDown)
+            event?.flags = []
+            event?.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
+            event?.post(tap: .cghidEventTap)
+        }
+    }
+
+    static func press(keyCode: Int, flags: CGEventFlags) {
+        let keyCode = CGKeyCode(keyCode)
         let source = CGEventSource(stateID: .hidSystemState)
         for keyDown in [true, false] {
             let event = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: keyDown)

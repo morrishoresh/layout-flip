@@ -124,6 +124,27 @@ enum LayoutConverter {
     /// don't end a run. Returns the full text with the run converted, using the first layout that changes it.
     static func convertTrailingRun(of text: String, among layouts: [KeyboardLayout]) -> Conversion? {
         let chars = text.unicodeScalars.map { String($0) }
+        guard let (start, candidates) = trailingRun(of: chars, among: layouts) else { return nil }
+        let prefix = chars[..<start].joined()
+        let run = chars[start...].joined()
+        guard let source = sourceLayout(of: run, among: candidates) ?? candidates.first else { return nil }
+        for target in layouts where target.id != source.id {
+            let converted = convert(run, from: source, to: target)
+            if converted != run { return Conversion(source: source, target: target, text: prefix + converted) }
+        }
+        return nil
+    }
+
+    /// The part of `text` that `convertTrailingRun` converts, as a UTF-16 offset (for NSRange / Accessibility).
+    static func trailingRunUTF16Start(of text: String, among layouts: [KeyboardLayout]) -> Int? {
+        let chars = text.unicodeScalars.map { String($0) }
+        guard let (start, _) = trailingRun(of: chars, among: layouts) else { return nil }
+        return chars[..<start].joined().utf16.count
+    }
+
+    /// Start index of the trailing run typed in one layout (0 when the whole text was), plus the layouts that can
+    /// type all of it.
+    private static func trailingRun(of chars: [String], among layouts: [KeyboardLayout]) -> (Int, [KeyboardLayout])? {
         var candidates = layouts
         var runStart: Int?
         var wholeText = true
@@ -139,14 +160,7 @@ enum LayoutConverter {
             runStart = index
         }
         guard let start = wholeText ? 0 : runStart else { return nil }
-        let prefix = chars[..<start].joined()
-        let run = chars[start...].joined()
-        guard let source = sourceLayout(of: run, among: candidates) ?? candidates.first else { return nil }
-        for target in layouts where target.id != source.id {
-            let converted = convert(run, from: source, to: target)
-            if converted != run { return Conversion(source: source, target: target, text: prefix + converted) }
-        }
-        return nil
+        return (start, candidates)
     }
 
     /// One conversion per other enabled layout, skipping those that leave the text unchanged.
